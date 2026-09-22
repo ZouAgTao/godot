@@ -1650,6 +1650,29 @@ void AudioServer::load_default_bus_layout() {
 	}
 }
 
+bool AudioServer::restart_output_driver() {
+	AudioDriver *driver = AudioDriver::get_singleton();
+	ERR_FAIL_NULL_V(driver, false);
+
+	lock();
+	driver->finish();
+	Error err = driver->init();
+	if (err == OK) {
+		// A different route can mean a different channel count. Only rebuild
+		// the buffers when it actually changed: init_channels_and_buffers()
+		// also re-instantiates every bus effect, which drops their state.
+		if (channel_count != get_channel_count()) {
+			init_channels_and_buffers();
+		}
+		channel_disable_frames = float(GLOBAL_GET("audio/buses/channel_disable_time")) * get_mix_rate();
+		driver->start();
+	}
+	unlock();
+
+	ERR_FAIL_COND_V_MSG(err != OK, false, "Failed to restart the audio output driver.");
+	return true;
+}
+
 void AudioServer::finish() {
 	for (int i = 0; i < AudioDriverManager::get_driver_count(); i++) {
 		AudioDriverManager::get_driver(i)->finish();
@@ -2092,6 +2115,7 @@ void AudioServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_output_device_list"), &AudioServer::get_output_device_list);
 	ClassDB::bind_method(D_METHOD("get_output_device"), &AudioServer::get_output_device);
 	ClassDB::bind_method(D_METHOD("set_output_device", "name"), &AudioServer::set_output_device);
+	ClassDB::bind_method(D_METHOD("restart_output_driver"), &AudioServer::restart_output_driver);
 
 	ClassDB::bind_method(D_METHOD("get_time_to_next_mix"), &AudioServer::get_time_to_next_mix);
 	ClassDB::bind_method(D_METHOD("get_time_since_last_mix"), &AudioServer::get_time_since_last_mix);

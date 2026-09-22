@@ -456,6 +456,19 @@ public:
 
 	virtual void init();
 	virtual void finish();
+
+	// Rebuild the output driver in place, and report whether it came back.
+	//
+	// Recovers the audio output when the platform tears it down underneath the
+	// engine. On iOS an output route change (headphones unplugged) stops the
+	// CoreAudio unit without telling the driver, whose own `active` flag still
+	// says it is running -- so `start()` is a no-op forever after and the app
+	// goes silent for good. Only the platform's own app delegate ever repaired
+	// this, and an embedded host does not install one.
+	//
+	// A full finish()/init() rather than a stop/start pair, because the new
+	// route may impose a different hardware format: init() re-reads it.
+	bool restart_output_driver();
 	virtual void update();
 	virtual void load_default_bus_layout();
 
