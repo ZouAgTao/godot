@@ -1650,12 +1650,21 @@ void AudioServer::load_default_bus_layout() {
 	}
 }
 
+// Set by stop_output_driver(): the driver is finished and must not be finished
+// again before the next init() -- a second finish() is not safe for every
+// driver (the dummy one frees its buffer twice). File scope rather than a
+// member, so that AudioServer's layout stays exactly as upstream has it.
+static bool output_driver_stopped = false;
+
 bool AudioServer::restart_output_driver() {
 	AudioDriver *driver = AudioDriver::get_singleton();
 	ERR_FAIL_NULL_V(driver, false);
 
 	lock();
-	driver->finish();
+	if (!output_driver_stopped) {
+		driver->finish();
+	}
+	output_driver_stopped = false;
 	Error err = driver->init();
 	if (err == OK) {
 		// A different route can mean a different channel count. Only rebuild
@@ -1671,6 +1680,18 @@ bool AudioServer::restart_output_driver() {
 
 	ERR_FAIL_COND_V_MSG(err != OK, false, "Failed to restart the audio output driver.");
 	return true;
+}
+
+void AudioServer::stop_output_driver() {
+	AudioDriver *driver = AudioDriver::get_singleton();
+	ERR_FAIL_NULL(driver);
+
+	lock();
+	if (!output_driver_stopped) {
+		driver->finish();
+		output_driver_stopped = true;
+	}
+	unlock();
 }
 
 void AudioServer::finish() {
@@ -2116,6 +2137,7 @@ void AudioServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_output_device"), &AudioServer::get_output_device);
 	ClassDB::bind_method(D_METHOD("set_output_device", "name"), &AudioServer::set_output_device);
 	ClassDB::bind_method(D_METHOD("restart_output_driver"), &AudioServer::restart_output_driver);
+	ClassDB::bind_method(D_METHOD("stop_output_driver"), &AudioServer::stop_output_driver);
 
 	ClassDB::bind_method(D_METHOD("get_time_to_next_mix"), &AudioServer::get_time_to_next_mix);
 	ClassDB::bind_method(D_METHOD("get_time_since_last_mix"), &AudioServer::get_time_since_last_mix);

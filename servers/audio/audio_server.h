@@ -469,6 +469,17 @@ public:
 	// A full finish()/init() rather than a stop/start pair, because the new
 	// route may impose a different hardware format: init() re-reads it.
 	bool restart_output_driver();
+
+	// Tear the output driver down and keep it down until restart_output_driver().
+	//
+	// For a host that has to let the platform's audio session go idle. On iOS
+	// the engine's CoreAudio unit runs from startup on, silent or not, and
+	// deactivating an AVAudioSession while any output in the process is running
+	// fails (AVAudioSessionErrorCodeIsBusy). So a session that started out
+	// mixing with other apps can never switch to taking the audio over: that
+	// takes a deactivate/reactivate cycle, and the running unit defeats it.
+	// The host stops the driver, cycles the session, then restarts the driver.
+	void stop_output_driver();
 	virtual void update();
 	virtual void load_default_bus_layout();
 
